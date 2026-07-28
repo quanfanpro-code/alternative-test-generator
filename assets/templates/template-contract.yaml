@@ -1,0 +1,60 @@
+version: "1.1"
+description: "替代测试模板合同 — 负债方和资产方两份模板的规格定义"
+
+templates:
+  liability:
+    name: "替代测试-负债方-v1.xlsx"
+    summary_sheet: "替代结果汇总表"
+    template_sheet: "替代测试表模板"
+    sections:
+      - title: "一、贷方发生额"
+        normal_direction: "increase"
+        check_items:
+          - name: "入库单"
+            sub_columns: ["日期", "数量"]
+          - name: "采购发票"
+            sub_columns: ["日期", "数量"]
+      - title: "二、借方发生额"
+        normal_direction: "decrease"
+        check_items:
+          - name: "银行回单"
+            sub_columns: ["日期", "金额"]
+          - name: "其他支持性文件"
+            sub_columns: ["日期"]
+      - title: "三、期后付款"
+        normal_direction: "decrease"
+        check_items:
+          - name: "银行回单"
+            sub_columns: ["日期", "金额"]
+          - name: "其他支持性文件"
+            sub_columns: ["日期"]
+
+  asset:
+    name: "替代测试-资产方-v1.xlsx"
+    summary_sheet: "替代结果汇总表"
+    template_sheet: "替代测试表模板"
+    sections:
+      - title: "一、借方发生额"
+        normal_direction: "increase"
+        check_items:
+          - name: "出库单"
+            sub_columns: ["日期", "数量"]
+          - name: "销售发票"
+            sub_columns: ["日期", "数量"]
+      - title: "二、贷方发生额"
+        normal_direction: "decrease"
+        check_items:
+          - name: "银行回单"
+            sub_columns: ["日期", "金额"]
+          - name: "其他支持性文件"
+            sub_columns: ["日期"]
+      - title: "三、期后收款"
+        normal_direction: "decrease"
+        check_items:
+          - name: "银行回单"
+            sub_columns: ["日期", "金额"]
+          - name: "其他支持性文件"
+            sub_columns: ["日期"]
+
+required_sheet_names: ["替代结果汇总表"]
+prohibited_content: ["√", "未发现异常", "附件完整", "乐山涌江", "汪红君", "张力"]
