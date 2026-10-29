@@ -108,7 +108,11 @@ def propose_matches(
         balance_keys[ek].append(b.counterparty_id)
 
     for line in lines:
-        decisions.append(_match_one_line(line, balances, balance_keys))
+        scoped = [b for b in balances if b.entity_id == line.entity_id and b.account_name == line.account_name]
+        scoped_keys: dict[str, list[str]] = {}
+        for balance in scoped:
+            scoped_keys.setdefault(exact_key(balance.raw_name), []).append(balance.counterparty_id)
+        decisions.append(_match_one_line(line, scoped, scoped_keys))
 
     return MatchPlan(decisions=decisions)
 

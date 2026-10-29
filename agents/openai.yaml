@@ -1,4 +1,4 @@
 interface:
   display_name: "往来替代测试候选底稿"
   short_description: "从余额表和序时账生成待核查候选凭证底稿"
-  default_prompt: "使用 $alternative-test-generator 检查我上传的往来余额表和序时账，逐项询问缺失信息，先展示匹配与勾稽，再生成不含自动结论的候选凭证底稿。"
+  default_prompt: "使用 $alternative-test-generator 自动识别往来余额表和多年度序时账，按测试时点和抽取规则填入实际单位信息、扩展凭证行、检索期后收付款候选，更新小计和比例，采用深海蓝主题并完成保存后验证。能自行查清的问题自行解决，仅无法消除且实质影响结果的歧义才集中询问。"

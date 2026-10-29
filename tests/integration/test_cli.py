@@ -1,98 +1,39 @@
-"""Task 11 — CLI 集成测试。"""
-
-from __future__ import annotations
-
+"""正式入口必须正确报告成功和失败，不能把空输入视为成功。"""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-RUNNER = str(Path(__file__).resolve().parents[2] / "scripts" / "run_alternative_test.py")
+RUNNER = Path(__file__).resolve().parents[2] / "scripts/run_alternative_test.py"
 
+def run(*args):
+    env = dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1")
+    return subprocess.run([sys.executable, "-B", "-X", "utf8", str(RUNNER), *map(str, args)],
+        capture_output=True, text=True, encoding="utf-8", timeout=30, env=env)
 
-def _run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, RUNNER, *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-
-# ── inspect ──
-
-def test_inspect_xlsx(tmp_path: Path) -> None:
-    """inspect 命令探测 xlsx 文件。"""
-    from tests.factories import make_simple_balance_xlsx
-    xlsx_path = tmp_path / "test.xlsx"
-    make_simple_balance_xlsx(xlsx_path)
-
-    result = _run("inspect", str(xlsx_path))
+def test_inspect_csv(tmp_path):
+    source = tmp_path / "测试.csv"
+    source.write_text("供应商,期末余额\n演示单位,100\n", encoding="utf-8-sig")
+    result = run("inspect", source)
     assert result.returncode == 0
+    assert json.loads(result.stdout)["files"][str(source)]["format"] == "csv"
 
-    data = json.loads(result.stdout.strip())
-    assert "files" in data
-    assert str(xlsx_path) in data["files"]
-    file_info = data["files"][str(xlsx_path)]
-    assert file_info["format"] == "xlsx"
+def test_missing_input_is_error(tmp_path):
+    assert run("inspect", tmp_path / "不存在.xlsx").returncode == 3
 
+def test_incomplete_prepare_is_error(tmp_path):
+    info, answers = tmp_path / "探测.json", tmp_path / "答案.json"
+    info.write_text('{"files":{}}', encoding="utf-8")
+    answers.write_text('{}', encoding="utf-8")
+    assert run("prepare", "--inspect", info, "--answers", answers, "--output", tmp_path / "准备").returncode == 3
+    assert not (tmp_path / "准备/prepared.json").exists()
 
-def test_inspect_output_file(tmp_path: Path) -> None:
-    """inspect --output 写入文件。"""
-    from tests.factories import make_simple_balance_xlsx
-    xlsx_path = tmp_path / "test.xlsx"
-    make_simple_balance_xlsx(xlsx_path)
+def test_incomplete_generate_is_error(tmp_path):
+    prepared = tmp_path / "prepared.json"
+    prepared.write_text('{}', encoding="utf-8")
+    assert run("generate", "--prepared", tmp_path, "--output-parent", tmp_path / "输出").returncode == 3
+    assert not list(tmp_path.glob("*.xlsx"))
 
-    output = tmp_path / "inspect.json"
-    result = _run("inspect", str(xlsx_path), "--output", str(output))
-    assert result.returncode == 0
-    assert output.exists()
-
-
-# ── prepare ──
-
-def test_prepare_creates_state(tmp_path: Path) -> None:
-    """prepare 创建 prepared state。"""
-    from tests.factories import make_simple_balance_xlsx
-    xlsx_path = tmp_path / "test.xlsx"
-    make_simple_balance_xlsx(xlsx_path)
-
-    # 先 inspect
-    inspect_out = tmp_path / "inspect.json"
-    _run("inspect", str(xlsx_path), "--output", str(inspect_out))
-
-    # 创建 answers
-    answers = tmp_path / "answers.json"
-    answers.write_text(json.dumps({
-        "period_start": "2025-01-01",
-        "period_end": "2025-12-31",
-        "entity_ids": ["E001"],
-    }))
-
-    # prepare
-    prep_dir = tmp_path / "prepared"
-    result = _run("prepare", "--inspect", str(inspect_out), "--answers", str(answers), "--output", str(prep_dir))
-    assert result.returncode == 0
-
-    prep_file = prep_dir / "prepared.json"
-    assert prep_file.exists()
-
-
-# ── generate（占位） ──
-
-def test_generate_placeholder(tmp_path: Path) -> None:
-    """generate 命令（占位实现）正常退出。"""
-    prep_dir = tmp_path / "prepared"
-    prep_dir.mkdir()
-    (prep_dir / "prepared.json").write_text("{}")
-
-    result = _run("generate", "--prepared", str(prep_dir), "--output-parent", str(tmp_path))
-    assert result.returncode == 0
-
-
-# ── validate ──
-
-def test_validate(tmp_path: Path) -> None:
-    """validate 命令检查目录。"""
-    result = _run("validate", str(tmp_path))
-    assert result.returncode == 0
+def test_empty_run_dir_cannot_pass_validation(tmp_path):
+    assert run("validate", tmp_path).returncode == 4

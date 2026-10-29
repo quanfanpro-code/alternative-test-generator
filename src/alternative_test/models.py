@@ -88,6 +88,8 @@ class JournalLine(BaseModel):
     account_name: str
     counterparty_raw: str | None = None
     summary: str
+    opposing_account_name: str | None = None  # 有来源才填，不把被测试科目冒充对方科目。
+    opposing_account_sources: list[SourceRef] = Field(default_factory=list)
     debit: Decimal
     credit: Decimal
     source: SourceRef

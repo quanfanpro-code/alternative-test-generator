@@ -9,7 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .models import JournalLine
+from .models import JournalLine, NormalBalance
+from .population import classify_movement
 from .population import PopulationResult
 
 # ──────────────────────────────────────────────
@@ -49,6 +50,7 @@ class SelectionResult:
 def select_candidates(
     population: PopulationResult,
     rules: list[SelectionRule],
+    normal_balance: NormalBalance = NormalBalance.CREDIT,
 ) -> SelectionResult:
     """根据用户规则从总体中选择候选。
 
@@ -66,7 +68,7 @@ def select_candidates(
     for line in population.included:
         hit = False
         for rule in active_rules:
-            if _check_rule(line, rule):
+            if _check_rule(line, rule, normal_balance):
                 result.selected.append((line, rule.rule_id))
                 hit = True
                 break  # 命中一条规则即可
@@ -76,42 +78,39 @@ def select_candidates(
     return result
 
 
-def _check_rule(line: JournalLine, rule: SelectionRule) -> bool:
+def _check_rule(line: JournalLine, rule: SelectionRule, normal_balance=NormalBalance.CREDIT) -> bool:
     """检查行是否命中单条规则。"""
-    field_value = _get_field_value(line, rule.field)
+    field_value = _get_field_value(line, rule.field, normal_balance)
+    values = rule.value if isinstance(rule.value, list) else [rule.value]
+    if isinstance(field_value, Decimal):
+        values = [Decimal(str(v)) for v in values]
+    elif isinstance(field_value, date):
+        values = [v if isinstance(v, date) else date.fromisoformat(str(v)) for v in values]
+    value = values if isinstance(rule.value, list) else values[0]
 
-    if rule.operator == "gte" and isinstance(rule.value, (Decimal, int, float)):
-        if isinstance(field_value, Decimal):
-            return field_value >= Decimal(str(rule.value))
-        return float(field_value) >= float(rule.value)
+    if rule.operator == "gte":
+        return field_value >= value
 
-    elif rule.operator == "lte" and isinstance(rule.value, (Decimal, int, float)):
-        if isinstance(field_value, Decimal):
-            return field_value <= Decimal(str(rule.value))
-        return float(field_value) <= float(rule.value)
+    elif rule.operator == "lte":
+        return field_value <= value
 
-    elif rule.operator == "between" and isinstance(rule.value, list):
-        if isinstance(field_value, Decimal) and len(rule.value) == 2:
-            lo = Decimal(str(rule.value[0]))
-            hi = Decimal(str(rule.value[1]))
-            return lo <= field_value <= hi
-        elif isinstance(field_value, date) and len(rule.value) == 2:
-            return rule.value[0] <= field_value <= rule.value[1]
+    elif rule.operator == "between" and isinstance(value, list) and len(value) == 2:
+        return value[0] <= field_value <= value[1]
 
     elif rule.operator == "equals":
-        return field_value == rule.value
+        return field_value == value
 
-    elif rule.operator == "in" and isinstance(rule.value, list):
-        return field_value in rule.value
+    elif rule.operator == "in" and isinstance(value, list):
+        return field_value in value
 
     return False
 
 
-def _get_field_value(line: JournalLine, field: str):
+def _get_field_value(line: JournalLine, field: str, normal_balance=NormalBalance.CREDIT):
     """获取规则字段值。"""
     if field == "signed_amount":
         # 使用绝对值较大的方向
-        return max(abs(line.debit), abs(line.credit))
+        return line.debit if abs(line.debit) >= abs(line.credit) else line.credit
     elif field == "absolute_amount":
         return max(abs(line.debit), abs(line.credit))
     elif field == "posting_date":
@@ -119,7 +118,5 @@ def _get_field_value(line: JournalLine, field: str):
     elif field == "voucher_key":
         return str(line.voucher_key)
     elif field == "movement_kind":
-        return str(
-            (line.debit, line.credit)
-        )
+        return classify_movement(line, normal_balance).value
     return None
